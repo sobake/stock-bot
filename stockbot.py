@@ -1,8 +1,18 @@
 import yfinance as yf
 import pandas as _pd
 import numpy as np
+import enum 
 import matplotlib.pyplot as plt
 
+"""
+        Author: Ryan Cullen
+"""
+
+class Decisions(enum.Enum):
+    sell = -1
+    hold = 0
+    buy = 1
+    
 
 class Portfolio:
    
@@ -11,92 +21,87 @@ class Portfolio:
     Holds information about current buying power, equity, and overall value.
 
     Attributes:
-        capital: starting cash.
-        shares: starting number of shares.
-        initial_price: the initial price of the stock.
-        portfolio value: the overall value of the stock portfolio in $USD if the owner were to liquidate all assets.
+        capital: starting cash
+        shares: starting number of shares
+        portfolio value: the overall value of the stock portfolio in $USD if the owner were to liquidate all assets
+
+    Funtions:
+        Decide(): This is where the logic of when to buy, sell, or hold should go
+        Order(): Used to execute a buy or sell order
         
     """
        
-    def __init__(self, capital, shares, initial_price): 
+    def __init__(self, capital, shares): 
         """ Inits a Portfolio object """
 
         self.capital = capital
         self.shares = shares
-        self.initial_price = initial_price
-        self.portfolio_value = self.capital + self.shares*self.initial_price
-        self.run = 0
+        self.portfolio_value = self.capital + self.shares*price
 
 
-    def Decide(self, f1, f2, f3, window):   
-        """ 
-            This is where the script decides to Buy, Sell, or Hold.
-            return 3: Buy
-            return -1: Sell
+    def Decide(self):   
+        """ This is where the script decides to Buy, Sell, or Hold; Desgin your algorithm logic here. """
 
-         """
+        
 
-        # concavity checks
-        if(f2.concavity < -0.1):
-            if price < f1.averages[i]:
-                if price < f3.averages[i]:
-                    self.run = 0
-                    return 0
-        if(f1.concavity < -0.2):
-            if price > f3.averages[i]:
-                self.run = 0
-                return -1
+    def Order(self, decision, n = -1):
+        """ Executes a buy/sell order of n shares, or a buy/sell max order if no input for n.
 
-        # TODO: Only sell for a profit? !!!
-
-        if(f1.slope > -0.1):
-            self.run += 1
-        return self.run
-
-
-
-    def Order(self, value, n):
-        """ 
-        Executes a buy order of n shares if value = 0, a sell order of
-        n shares if value = -1, a sell max order if value = -2, and a 
-        buy max order if value = 3.
-
+            Arguments:
+                decision: an element from the Decisions class
+                n: number of shares to order
+        
         """
 
+        counter = 0
+
         # buy n
-        if value == 0:
+        if decision == Decisions.buy:
             counter = 0  
             while self.capital >= price:
                 self.capital -= price
+                self.shares += 1
                 counter += 1
                 if counter == n:
                     break
-            self.shares += counter
-            plt.plot([i], [price], marker='o', markersize=4, color="limegreen")
-
+            
         # sell n
-        elif value == -1:
-            if self.shares > n:
-                self.capital += n*price
-                self.shares -= n
-            plt.plot([i], [price], marker='o', markersize=4, color="red")
-
-        # buy all
-        if value == 3:
+        elif decision == Decisions.sell:
             counter = 0  
-            while self.capital >= price:
-                self.capital -= price
+            while self.shares > 0:
+                self.capital += price
+                self.shares -= 1
                 counter += 1
-            self.shares += counter
-            plt.plot([i], [price], marker='o', markersize=4, color="limegreen")
+                if counter == n:
+                    break
 
-        # sell all
-        elif value == -2:
-            self.capital += self.shares*price
-            self.shares = 0
-            plt.plot([i], [price], marker='o', markersize=4, color="red")
+        # plot a dot for buy or sell
+        if counter > 0:
+            if decision.value > 0:
+                plt.plot([i], [price], marker='o', markersize=4, color="limegreen")
+            elif decision.value < 0:
+                plt.plot([i], [price], marker='o', markersize=4, color="red")
+
     
-    def PortoflioValue(self):
+    
+    def OptimalPosition(expected_return, prob_win, modifier):
+        """ Uses the Kelly Criterion to calculate the optimal position size for a given play.
+
+            Arguments:
+                expected return: the expected value of the shares at the end of the play minus the value today
+                prob_win: the fractional probability that we will get our expected return
+                modifier: a value between 0 and 1; higher values make for a more aggressive bet
+        """
+        prob_lose = 1 - prob_win
+        fraction = ((expected_return * prob_win) - prob_lose) / expected_return
+        optimal_position = (self.capital * fraction) * modifier
+
+        return optimal_position
+
+    
+
+    def PortfolioValue(self):
+        """ Returns the current total monetary value of the portfolio """
         self.portfolio_value = self.capital + (self.shares*price)
         return self.portfolio_value
 
@@ -146,9 +151,9 @@ class MovingAverage:
 
     def CalculateAverage(self, value_list, window):
 
-        """ Calculates the value for the moving average over the last (window) days
+        """ Calculates the value for the moving average over the last (window) days.
         
-            Attributes:
+            Arguments:
                 value_list: the list of values of which the average will be calculated
                 window: the interval over which to calculate the average value
 
@@ -172,10 +177,10 @@ class MovingAverage:
 
 
     def Update(self, window):
-        """ Updates the indicators used for building the algorithm
+        """ Updates the indicators used for building the algorithm.
         
-            Attributes:
-                window: the interval over which to calculate the indicators.
+            Arguments:
+                window: the interval over which to calculate the indicators
         
         """
         # percent deviation from the mean
@@ -239,7 +244,7 @@ while True:
 
     # get ticker information and price history
     ticker_info = yf.Ticker(ticker)
-    price_history = ticker_info.history(start="2017-01-01",  end="2020-12-20")
+    price_history = ticker_info.history(start="1990-01-01",  end="2020-12-20")
 
     # assign lists for the open/close prices, the moving-average values, 
     # and the daily average prices.
@@ -259,13 +264,15 @@ while True:
     starting_capital = 0
     starting_shares = 100
     entry_price = starting_shares * price
-    portfolio = Portfolio(starting_capital, starting_shares, price)
+    portfolio = Portfolio(starting_capital, starting_shares)
 
     # objects to track moving averages
     f1 = MovingAverage()
     f2 = MovingAverage()
     f3 = MovingAverage()
+    f4 = MovingAverage()
 
+    max_slope = 0
 
     # iterate over the history of the stock
     for i in range(days):
@@ -275,33 +282,32 @@ while True:
         prices.append(price)
         
         # calculate the current moving averages
-        window = 40
-        f1.averages.append(f1.CalculateAverage(prices, window))
-        f2.averages.append(f2.CalculateAverage(f1.averages, window))
-        f3.averages.append(f3.CalculateAverage(f2.averages, window))
+        f1.averages.append(f1.CalculateAverage(prices, 10))
+        f2.averages.append(f2.CalculateAverage(prices, 50))
+        f3.averages.append(f3.CalculateAverage(prices, 100))
+        f4.averages.append(f4.CalculateAverage(prices, 200))
         
         # update the functions
-        small_window = int(window/2)
-        f1.Update(small_window)
-        f2.Update(small_window)
-        f3.Update(small_window)
+        f1.Update(10)
+        f2.Update(50)
+        f3.Update(100)
+        f4.Update(200)
 
         # decide if we buy, sell, or hold
-        value = portfolio.Decide(f1, f2, f3, window)
-        portfolio.Order(value, 10)
+        portfolio.Decide()
     
     
     # did we win?
     control_value = starting_capital + (prices[days - 1] * starting_shares)
-    algo_value = portfolio.PortoflioValue()
+    algo_value = portfolio.PortfolioValue()
 
     print(" ")
-    print("Capital: " + str(portfolio.capital))
-    print("Shares: " + str(portfolio.shares))
-    print("Buy and Hold portfolio value: " + str(control_value))
-    print("Returns: " + str(control_value - entry_price))
-    print("Algorithm portfolio value: " + str(algo_value))
-    print("Returns: " + str(algo_value - entry_price))
+    print(f"Capital: {portfolio.capital:,.2f}")
+    print(f"Shares: {portfolio.shares:,.2f}")
+    print(f"Buy and Hold portfolio value: {control_value:,.2f}")
+    print(f"Returns: {(control_value - entry_price):,.2f}")
+    print(f"Algorithm portfolio value:  {algo_value:,.2f}")
+    print(f"Returns: {(algo_value - entry_price):,.2f}")
     print(" ")
 
     plt.plot([0], [prices[0]], marker='o', markersize=4, color="red", label="Sell Point")
@@ -315,12 +321,8 @@ while True:
     plt.ylabel("Price")
     plt.legend()
     
-#    plt.plot(x, f1.averages)
-#    plt.plot(x, f2.averages)
-#    plt.plot(x, f3.averages)
+    plt.plot(x, f1.averages)
+    plt.plot(x, f2.averages)
+    plt.plot(x, f3.averages)
+    plt.plot(x, f4.averages)
     plt.show()
-
-
-    
-
-
